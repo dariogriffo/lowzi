@@ -16,7 +16,7 @@ fn insertPlaylist(conn: *storage.Conn, name: []const u8) !i64 {
     if (rc != c.SQLITE_OK) return error.SqlitePrepFailed;
     defer _ = c.sqlite3_finalize(stmt);
 
-    _ = c.sqlite3_bind_text(stmt, 1, name.ptr, @intCast(name.len), c.SQLITE_TRANSIENT);
+    _ = c.sqlite3_bind_text(stmt, 1, name.ptr, @intCast(name.len), storage.sqliteTransient());
     const step_rc = c.sqlite3_step(stmt);
     if (step_rc != c.SQLITE_DONE) return error.SqliteStepFailed;
     return c.sqlite3_last_insert_rowid(conn.db);
@@ -33,7 +33,7 @@ fn insertTrack(conn: *storage.Conn, playlist_id: i64, url: []const u8) !i64 {
     defer _ = c.sqlite3_finalize(stmt);
 
     _ = c.sqlite3_bind_int64(stmt, 1, playlist_id);
-    _ = c.sqlite3_bind_text(stmt, 2, url.ptr, @intCast(url.len), c.SQLITE_TRANSIENT);
+    _ = c.sqlite3_bind_text(stmt, 2, url.ptr, @intCast(url.len), storage.sqliteTransient());
     const step_rc = c.sqlite3_step(stmt);
     if (step_rc != c.SQLITE_DONE) return error.SqliteStepFailed;
     return c.sqlite3_last_insert_rowid(conn.db);

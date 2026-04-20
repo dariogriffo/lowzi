@@ -73,7 +73,7 @@ pub fn install(
 
         // Install handlers for SIGINT and SIGTERM.
         const handler = std.posix.Sigaction{
-            .handler = .{ .handler = sigHandler },
+            .handler = .{ .handler = sig_handler },
             .mask = std.posix.sigemptyset(),
             .flags = 0,
         };
@@ -108,12 +108,19 @@ pub fn install(
 // Must be reentrant: no allocations, no locks, no I/O.
 // ---------------------------------------------------------------------------
 
-fn sigHandler(sig: std.posix.SIG) callconv(std.builtin.CallingConvention.c) void {
-    _ = sig;
-    if (g_flag) |f| {
-        f.store(true, .release);
+// On POSIX, `std.posix.SIG` is the platform's native signal-number type
+// (e.g. `os.linux.SIG__enum_*`).  On Windows it aliases `void`, which is
+// not a valid fn parameter type.  We declare `sigHandler` inside a comptime
+// container that exists only on non-Windows targets so its signature is
+// never semantically analyzed when targeting Windows.
+const sig_handler = if (builtin.os.tag != .windows) struct {
+    fn handler(sig: std.posix.SIG) callconv(std.builtin.CallingConvention.c) void {
+        _ = sig;
+        if (g_flag) |f| {
+            f.store(true, .release);
+        }
     }
-}
+}.handler else {};
 
 // ---------------------------------------------------------------------------
 // Polling task — checks the flag every 100ms and sends Command.quit once.

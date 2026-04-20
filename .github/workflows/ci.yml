@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (ubuntu, zig 0.16.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Zig 0.16.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Cache Zig global cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig-cache
+            .zig-cache
+          key: zig-${{ runner.os }}-0.16.0-${{ hashFiles('build.zig.zon') }}
+          restore-keys: |
+            zig-${{ runner.os }}-0.16.0-
+
+      - name: Build
+        run: zig build
+
+      - name: Run tests
+        # The merged JUnit XML path is baked into build.zig via zunit's
+        # testSuite helper; no passthrough flags are needed here.
+        run: zig build test
+
+      # Upload the raw XML so it is available as a workflow artifact.
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results.xml
+          retention-days: 30
+
+      # Publish JUnit results as a GitHub check — shows pass/fail per test
+      # case in the "Checks" tab of the PR and in the job summary.
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: test-results.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      # Write a compact markdown table to the job summary page.
+      - name: Write job summary
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET, os, sys
+
+          path = "test-results.xml"
+          if not os.path.exists(path):
+              print("No test-results.xml found; skipping summary.", file=sys.stderr)
+              sys.exit(0)
+
+          root = ET.parse(path).getroot()
+          total    = int(root.get("tests",    0))
+          failures = int(root.get("failures", 0))
+          skipped  = int(root.get("skipped",  0))
+          passed   = total - failures - skipped
+
+          lines = []
+          lines.append("## Test Results\n")
+          lines.append("| ✅ Passed | ❌ Failed | ⏭ Skipped | Total |")
+          lines.append("|-----------|-----------|-----------|-------|")
+          lines.append(f"| {passed} | {failures} | {skipped} | {total} |")
+
+          if failures > 0:
+              lines.append("\n### Failed Tests\n")
+              for suite in root.findall("testsuite"):
+                  for tc in suite.findall("testcase"):
+                      fail = tc.find("failure")
+                      if fail is not None:
+                          name      = tc.get("name", "unknown")
+                          classname = tc.get("classname", "")
+                          msg       = fail.get("message", "test failed")
+                          prefix    = f"**{classname}** › " if classname else ""
+                          lines.append(f"- {prefix}{name}: `{msg}`")
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY", "")
+          if summary:
+              with open(summary, "a") as f:
+                  f.write("\n".join(lines) + "\n")
+          else:
+              print("\n".join(lines))
+          EOF

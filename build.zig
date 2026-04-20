@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zunit_build = @import("zunit");
 
 pub fn build(b: *std.Build) void {
@@ -173,12 +174,20 @@ pub fn build(b: *std.Build) void {
     audio_module.addImport("audio_c", audio_c_mod);
     audio_module.addImport("core", core_module);
     audio_module.link_libc = true;
+    // -pthread is a GCC/Clang driver flag valid on POSIX targets; on Windows
+    // mingw it is silently ignored, but it is invalid under MSVC-style
+    // toolchains.  Gate it so the flag list matches the system-library
+    // linkage further down (pthread is only linked on Linux).
+    const audio_c_flags: []const []const u8 = if (target.result.os.tag == .linux)
+        &.{ "-std=c99", "-pthread" }
+    else
+        &.{"-std=c99"};
     audio_module.addCSourceFiles(.{
         .files = &.{
             "third_party/miniaudio/miniaudio.c",
             "third_party/dr_libs/dr_mp3.c",
         },
-        .flags = &.{ "-std=c99", "-pthread" },
+        .flags = audio_c_flags,
     });
     audio_module.addIncludePath(b.path("third_party/miniaudio"));
     audio_module.addIncludePath(b.path("third_party/dr_libs"));
@@ -362,27 +371,35 @@ pub fn build(b: *std.Build) void {
     // -------------------------------------------------------------------------
     const lint_step = b.step("lint", "Run zlint on src/ and tests/ (advisory in v0.1)");
 
-    const zlint_path: ?[]const u8 = b.findProgram(&.{"zlint"}, &.{}) catch null;
-
-    if (zlint_path) |_| {
-        // zlint is present — run it but treat any exit code as advisory.
-        // We wrap via `sh -c` so a non-zero exit from zlint does not cause
-        // `zig build lint` to fail.  The developer still sees all output.
-        // Remove the `|| true` suffix once zlint ships a 0.16-aware release
-        // and a clean run on `src/` has been reproduced (SPECIFICATION §9.4).
-        const advisory_cmd = b.addSystemCommand(&.{
-            "sh", "-c",
-            "zlint src tests || echo 'lowzi: zlint exited non-zero (advisory in v0.1 — see SPECIFICATION §9.4)'",
-        });
-        if (b.args) |args| advisory_cmd.addArgs(args);
-        lint_step.dependOn(&advisory_cmd.step);
+    // The shell wrapper used to make zlint's exit code advisory relies on a
+    // POSIX `sh` that isn't on a bare Windows host.  On Windows we register
+    // the lint step as a no-op so `zig build lint` doesn't error there.
+    if (builtin.os.tag == .windows) {
+        // No-op: lint_step has no dependencies; running it does nothing.
+        // Developers on Windows can invoke `zlint src tests` directly.
     } else {
-        // zlint binary not found — print a notice and continue.  Do not fail.
-        // Install with:  bash tasks/install-zlint.sh
-        const notice = b.addSystemCommand(&.{
-            "sh", "-c",
-            "echo 'lowzi: zlint not found — lint step skipped (advisory in v0.1). Install with: bash tasks/install-zlint.sh'",
-        });
-        lint_step.dependOn(&notice.step);
+        const zlint_path: ?[]const u8 = b.findProgram(&.{"zlint"}, &.{}) catch null;
+
+        if (zlint_path) |_| {
+            // zlint is present — run it but treat any exit code as advisory.
+            // We wrap via `sh -c` so a non-zero exit from zlint does not cause
+            // `zig build lint` to fail.  The developer still sees all output.
+            // Remove the `|| true` suffix once zlint ships a 0.16-aware release
+            // and a clean run on `src/` has been reproduced (SPECIFICATION §9.4).
+            const advisory_cmd = b.addSystemCommand(&.{
+                "sh", "-c",
+                "zlint src tests || echo 'lowzi: zlint exited non-zero (advisory in v0.1 — see SPECIFICATION §9.4)'",
+            });
+            if (b.args) |args| advisory_cmd.addArgs(args);
+            lint_step.dependOn(&advisory_cmd.step);
+        } else {
+            // zlint binary not found — print a notice and continue.  Do not fail.
+            // Install with:  bash tasks/install-zlint.sh
+            const notice = b.addSystemCommand(&.{
+                "sh", "-c",
+                "echo 'lowzi: zlint not found — lint step skipped (advisory in v0.1). Install with: bash tasks/install-zlint.sh'",
+            });
+            lint_step.dependOn(&notice.step);
+        }
     }
 }

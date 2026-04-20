@@ -23,7 +23,7 @@ fn countTracksForPlaylist(conn: *storage.Conn, pl_name: []const u8) !i64 {
         "SELECT COUNT(*) FROM tracks t JOIN playlists p ON p.id = t.playlist_id WHERE p.name = ?",
         -1, &stmt, null);
     defer _ = c.sqlite3_finalize(stmt);
-    _ = c.sqlite3_bind_text(stmt, 1, pl_name.ptr, @intCast(pl_name.len), c.SQLITE_TRANSIENT);
+    _ = c.sqlite3_bind_text(stmt, 1, pl_name.ptr, @intCast(pl_name.len), storage.sqliteTransient());
     _ = c.sqlite3_step(stmt);
     return c.sqlite3_column_int64(stmt, 0);
 }

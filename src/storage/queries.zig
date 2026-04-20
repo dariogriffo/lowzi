@@ -1,5 +1,7 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c_mod = @import("c.zig");
+const c = c_mod.c;
+const sqliteTransient = c_mod.sqliteTransient;
 const Conn = @import("conn.zig").Conn;
 const execSqlZ = @import("conn.zig").execSqlZ;
 const execSql = @import("conn.zig").execSql;
@@ -236,7 +238,7 @@ pub fn setManifestHash(conn: *Conn, hash: []const u8) !void {
     if (rc != c.SQLITE_OK) return error.SqlitePrepFailed;
     defer _ = c.sqlite3_finalize(stmt);
 
-    _ = c.sqlite3_bind_text(stmt, 1, hash.ptr, @intCast(hash.len), c.SQLITE_TRANSIENT);
+    _ = c.sqlite3_bind_text(stmt, 1, hash.ptr, @intCast(hash.len), sqliteTransient());
     const step_rc = c.sqlite3_step(stmt);
     if (step_rc != c.SQLITE_DONE) return error.SqliteStepFailed;
 }
@@ -263,10 +265,10 @@ pub const SyncTx = struct {
         if (rc != c.SQLITE_OK) return error.SqlitePrepFailed;
         defer _ = c.sqlite3_finalize(stmt);
 
-        _ = c.sqlite3_bind_text(stmt, 1, playlist_name.ptr, @intCast(playlist_name.len), c.SQLITE_TRANSIENT);
-        _ = c.sqlite3_bind_text(stmt, 2, url.ptr, @intCast(url.len), c.SQLITE_TRANSIENT);
+        _ = c.sqlite3_bind_text(stmt, 1, playlist_name.ptr, @intCast(playlist_name.len), sqliteTransient());
+        _ = c.sqlite3_bind_text(stmt, 2, url.ptr, @intCast(url.len), sqliteTransient());
         if (display_name) |dn| {
-            _ = c.sqlite3_bind_text(stmt, 3, dn.ptr, @intCast(dn.len), c.SQLITE_TRANSIENT);
+            _ = c.sqlite3_bind_text(stmt, 3, dn.ptr, @intCast(dn.len), sqliteTransient());
         } else {
             _ = c.sqlite3_bind_null(stmt, 3);
         }

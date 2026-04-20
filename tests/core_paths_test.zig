@@ -3,9 +3,20 @@ const std = @import("std");
 const builtin = @import("builtin");
 const core = @import("core");
 
-// Use POSIX setenv/unsetenv for test setup on Linux/macOS.
-extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
-extern "c" fn unsetenv(name: [*:0]const u8) c_int;
+// POSIX setenv/unsetenv are not in the Windows CRT.  Compile a no-op shim on
+// Windows so the test binary links; the tests that call into it are gated to
+// non-Windows targets and skip at runtime.
+const posix_env = if (builtin.os.tag == .windows) struct {
+    fn setenv(_: [*:0]const u8, _: [*:0]const u8, _: c_int) c_int {
+        return 0;
+    }
+    fn unsetenv(_: [*:0]const u8) c_int {
+        return 0;
+    }
+} else struct {
+    extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
+    extern "c" fn unsetenv(name: [*:0]const u8) c_int;
+};
 
 // ---------------------------------------------------------------------------
 // dataDir tests
@@ -15,8 +26,8 @@ test "core.paths: dataDir respects XDG_DATA_HOME" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = setenv("XDG_DATA_HOME", "/tmp/test_xdg_data", 1);
-    defer _ = unsetenv("XDG_DATA_HOME");
+    _ = posix_env.setenv("XDG_DATA_HOME", "/tmp/test_xdg_data", 1);
+    defer _ = posix_env.unsetenv("XDG_DATA_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -30,7 +41,7 @@ test "core.paths: dataDir falls back to ~/.local/share/lowzi on Linux" {
     const gpa = std.testing.allocator;
 
     // Make sure XDG_DATA_HOME is unset so we exercise the fallback.
-    _ = unsetenv("XDG_DATA_HOME");
+    _ = posix_env.unsetenv("XDG_DATA_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -52,8 +63,8 @@ test "core.paths: stateDir respects XDG_STATE_HOME" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = setenv("XDG_STATE_HOME", "/tmp/test_xdg_state", 1);
-    defer _ = unsetenv("XDG_STATE_HOME");
+    _ = posix_env.setenv("XDG_STATE_HOME", "/tmp/test_xdg_state", 1);
+    defer _ = posix_env.unsetenv("XDG_STATE_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -66,7 +77,7 @@ test "core.paths: stateDir falls back to ~/.local/state/lowzi on Linux" {
     if (builtin.os.tag != .linux) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = unsetenv("XDG_STATE_HOME");
+    _ = posix_env.unsetenv("XDG_STATE_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -88,8 +99,8 @@ test "core.paths: bookmarksPath appends bookmarks.txt" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = setenv("XDG_DATA_HOME", "/tmp/bm_test", 1);
-    defer _ = unsetenv("XDG_DATA_HOME");
+    _ = posix_env.setenv("XDG_DATA_HOME", "/tmp/bm_test", 1);
+    defer _ = posix_env.unsetenv("XDG_DATA_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -102,8 +113,8 @@ test "core.paths: listsDir appends lists subdir" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = setenv("XDG_DATA_HOME", "/tmp/lists_test", 1);
-    defer _ = unsetenv("XDG_DATA_HOME");
+    _ = posix_env.setenv("XDG_DATA_HOME", "/tmp/lists_test", 1);
+    defer _ = posix_env.unsetenv("XDG_DATA_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -116,8 +127,8 @@ test "core.paths: logPath appends log file" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     const gpa = std.testing.allocator;
 
-    _ = setenv("XDG_STATE_HOME", "/tmp/log_test", 1);
-    defer _ = unsetenv("XDG_STATE_HOME");
+    _ = posix_env.setenv("XDG_STATE_HOME", "/tmp/log_test", 1);
+    defer _ = posix_env.unsetenv("XDG_STATE_HOME");
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();

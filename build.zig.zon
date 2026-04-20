@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .zunit = .{
-            .url = "git+https://github.com/dariogriffo/zunit?ref=v2.2.0#42e4dcad60987bc06913af5b51b4884fc263b419",
-            .hash = "zunit-2.2.0-GSHuWAVZAQCRglatJPvPwfHXlmnYFbWe7Ij6vpeDaIrQ",
+            .url = "git+https://github.com/dariogriffo/zunit?ref=v2.3.0#50b5b15d6ab69d028bacb89e283db1c9db70dd34",
+            .hash = "zunit-2.3.0-GSHuWFFbAQDChB0j5jRvAeYGV_m17dhp2SMzYERLS2uO",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "src", "tests", "tasks", "test_runner.zig", "zlint.json" },

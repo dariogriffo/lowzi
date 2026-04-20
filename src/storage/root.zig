@@ -5,3 +5,7 @@
 pub const Conn = @import("conn.zig").Conn;
 pub const queries = @import("queries.zig");
 pub const schema = @import("schema.zig");
+
+/// Re-exported `SQLITE_TRANSIENT` sentinel — see src/storage/c.zig for the
+/// reason this is a fn rather than the translate-c constant.
+pub const sqliteTransient = @import("c.zig").sqliteTransient;

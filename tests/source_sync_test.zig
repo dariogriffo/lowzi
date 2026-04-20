@@ -123,7 +123,7 @@ fn getTrackIdByUrl(conn: *storage.Conn, url: []const u8) !?i64 {
         "SELECT id FROM tracks WHERE url = ?", -1, &stmt, null);
     if (rc != c.SQLITE_OK) return error.SqlitePrepFailed;
     defer _ = c.sqlite3_finalize(stmt);
-    _ = c.sqlite3_bind_text(stmt, 1, url.ptr, @intCast(url.len), c.SQLITE_TRANSIENT);
+    _ = c.sqlite3_bind_text(stmt, 1, url.ptr, @intCast(url.len), storage.sqliteTransient());
     const step_rc = c.sqlite3_step(stmt);
     if (step_rc == c.SQLITE_DONE) return null;
     return c.sqlite3_column_int64(stmt, 0);
